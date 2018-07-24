@@ -4,6 +4,7 @@ import tensorflow as tf
 import os
 import matplotlib.pyplot as plt
 from scipy.misc import imread
+from scipy.misc import imresize
 
 def preprocess(image, mean_pixel):
     return image - mean_pixel
@@ -18,6 +19,8 @@ def _conv_layer(input, weights, bias):
     return tf.nn.bias_add(conv, bias)
 
 def pool_layer(input):
+    print(input)
+    print("maxpool")
     return tf.nn.max_pool(input, ksize=(1,2,2,1),strides=(1,2,2,1), padding="SAME")
 
 def net(data_path, input_image):
@@ -40,6 +43,7 @@ def net(data_path, input_image):
     net = {}
     current = input_image
     for i, name in enumerate(layers):
+        print("current layer: ",current)
         kind = name[:3]
         if kind == 'con':
             kernels, bias = weights[i][0][0][0][0]
@@ -61,8 +65,30 @@ def net(data_path, input_image):
         elif kind == 'fc6':
             kernels, bias = weights[i][0][0][0][0]
             bias = bias.reshape(-1)
-            current = tf.reshape(current,[])
-
+            current = tf.reshape(current,[current.shape[0], -1])
+            print("current:",current.shape)
+            kernels = kernels.reshape(-1,kernels.shape[-1])
+            current = tf.nn.bias_add(tf.matmul(current, kernels),bias)
+            print("fc6 kennels: " , kernels.shape)
+            print("fc6 bias: ", bias.shape)
+        elif kind == 'fc7':
+            kernels, bias = weights[i][0][0][0][0]
+            bias = bias.reshape(-1)
+            print("current:", current.shape)
+            kernels = kernels.reshape(-1, kernels.shape[-1])
+            current = tf.nn.bias_add(tf.matmul(current, kernels), bias)
+            print("fc7 kennels: ", kernels.shape)
+            print("fc7 bias: ", bias.shape)
+        elif kind == 'fc8':
+            kernels, bias = weights[i][0][0][0][0]
+            bias = bias.reshape(-1)
+            print("current:", current.shape)
+            kernels = kernels.reshape(-1, kernels.shape[-1])
+            current = tf.nn.bias_add(tf.matmul(current, kernels), bias)
+            print("fc8 kennels: ", kernels.shape)
+            print("fc8 bias: ", bias.shape)
+        elif kind == 'sof':
+            current = tf.nn.softmax(current)
         net[name] = current
     assert  len(net) == len(layers)
     return net,mean_pixel, layers
@@ -71,9 +97,18 @@ def net(data_path, input_image):
 
 #Test
 
+labels = [str.strip() for str in open("./synset.txt").readlines()]
+print(labels)
+
 vgg_path = './imagenet-vgg-verydeep-19.mat'
-img_path = './10.jpg'
-input_image = imread(img_path).astype(np.float)
+img_path = './cat2.jpg'
+input_image = imread(img_path)
+input_image = imresize(input_image, [224,224,3])
+input_image = input_image.astype(np.float)
+
+#plt.imshow(input_image)
+#plt.show()
+
 print(input_image.shape)
 shape = (1,input_image.shape[0], input_image.shape[1], input_image.shape[2])
 
@@ -83,15 +118,17 @@ with tf.Session() as sess:
     input_image_pre = np.array([preprocess(input_image, mean_pixel)])
     print("layers")
     print(layers)
-    for i,layer in enumerate(layers):
-        print("%d / %d  %s" %(i+1,len(layers),layer))
-        #features = sess.run(nets[layer],feed_dict={image:input_image_pre})
-        features = nets[layer].eval(feed_dict={image: input_image_pre})
 
-        print(" Type of 'features' is ", type(features))
-        print(" Shape of 'features' is %s" % (features.shape,))
+    result = nets['softmax'].eval(feed_dict={image: input_image_pre})
+    print(result)
 
-        plt.figure(i+1,figsize=(10,5))
-        plt.matshow(features[0, :, :, 0], cmap=plt.cm.gray, fignum=i+1)
-        plt.show()
-
+    # maxIndex = np.argmax(result[0])
+    # print("maxIndex:",maxIndex)
+    # print(result[0][maxIndex])
+    # print(labels[maxIndex])
+    import heapq
+    index = heapq.nlargest(5,range(len(result[0])),result[0].__getitem__)
+    print(index)
+    for i in index:
+        print("result:" ,result[0][i])
+        print(labels[i])
